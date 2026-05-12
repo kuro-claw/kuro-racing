@@ -35,6 +35,9 @@ export class LightingManager {
 
   setIntensity(multiplier: number): void {
     this.intensityMultiplier = multiplier;
+    this.ambient.intensity = 0.15 * multiplier;
+    this.hemi.intensity = 0.4 * multiplier;
+    this.moon.intensity = 0.3 * multiplier;
   }
 
   update(): void {
