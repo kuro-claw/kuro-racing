@@ -36,8 +36,8 @@ async function bootstrap(): Promise<void> {
     // ── 3. Vehicle ────────────────────────────────────────────
     const vehicle = new Vehicle(scene, PHANTOM_CONFIG);
 
-    // Position vehicle at track start (sample 0), slightly above ground
-    const startSample = trackSamples[0];
+    // Position vehicle at track start — a few samples in so it's clear of barriers
+    const startSample = trackSamples[3] ?? trackSamples[0];
     if (startSample) {
       vehicle.node.position.copyFrom(
         startSample.position.add(new Vector3(0, 0.5, 0))

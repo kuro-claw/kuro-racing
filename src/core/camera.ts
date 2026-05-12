@@ -1,7 +1,10 @@
 import {
+  AbstractMesh,
   Camera,
   FollowCamera,
   FreeCamera,
+  Mesh,
+  MeshBuilder,
   Scene,
   TransformNode,
   Vector3,
@@ -33,7 +36,7 @@ const DEFAULT_DASH_CONFIG: CameraConfig = {
 export class CameraManager {
   private chaseCamera: FollowCamera;
   private dashCamera: FreeCamera;
-  private target: TransformNode;
+  private target: Mesh;
   private activeCamera: Camera;
   private currentView: CameraView = 'chase';
   private transitionProgress = 1;
@@ -42,14 +45,16 @@ export class CameraManager {
   private transitioning = false;
 
   constructor(private scene: Scene) {
-    this.target = new TransformNode('_cameraTarget', scene);
+    // Invisible anchor mesh — FollowCamera.lockedTarget requires AbstractMesh
+    this.target = MeshBuilder.CreateBox('_cameraAnchor', { size: 0.01 }, scene);
+    this.target.isVisible = false;
     this.target.position = new Vector3(0, 0, 0);
 
     this.chaseCamera = this.createChaseCamera();
     this.dashCamera = this.createDashCamera();
 
     this.activeCamera = this.chaseCamera;
-    this.activeCamera.attachControl();
+    // Don't attachControl — we use our own InputManager for driving
   }
 
   private createChaseCamera(): FollowCamera {
@@ -64,8 +69,7 @@ export class CameraManager {
     camera.fov = DEFAULT_CHASE_CONFIG.fov;
     camera.cameraAcceleration = DEFAULT_CHASE_CONFIG.smoothness;
     camera.maxCameraSpeed = 50;
-    camera.lockedTarget = null;
-    camera.target = this.target.position;
+    camera.lockedTarget = this.target;
     return camera;
   }
 
@@ -102,10 +106,8 @@ export class CameraManager {
     this.transitionProgress = 0;
     this.transitioning = true;
 
-    this.activeCamera.detachControl();
     this.activeCamera = view === 'chase' ? this.chaseCamera : this.dashCamera;
     this.currentView = view;
-    this.activeCamera.attachControl();
   }
 
   getCurrentFov(): number {
@@ -146,7 +148,7 @@ export class CameraManager {
       this.dashCamera.rotation.y = this.lerp(this.dashCamera.rotation.y, targetRot.y, DEFAULT_DASH_CONFIG.smoothness);
     }
 
-    this.chaseCamera.target = this.target.position;
+    // FollowCamera tracks via lockedTarget — no manual update needed
   }
 
   getActiveCamera(): Camera {
