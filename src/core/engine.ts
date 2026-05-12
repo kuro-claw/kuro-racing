@@ -28,7 +28,5 @@ export async function init(): Promise<KuroRacingEngine> {
     engine.resize();
   });
 
-
-
   return { engine, scene };
 }
