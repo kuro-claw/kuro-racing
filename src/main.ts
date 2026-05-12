@@ -76,6 +76,10 @@ async function bootstrap(): Promise<void> {
         if (audioReady) audioManager.start();
       }
 
+      // Refocus canvas so keyboard events fire correctly after GUI button click
+      const canvas = document.getElementById('render-canvas');
+      if (canvas) canvas.focus();
+
       const now = performance.now();
       timeTrial.start(now);
       startGameLoop();
