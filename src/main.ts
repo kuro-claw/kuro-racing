@@ -82,12 +82,19 @@ async function bootstrap(): Promise<void> {
     });
 
     // ── 10. Render Loop ───────────────────────────────────────
+    // Idle loop — just renders menu + scene background before game starts
+    engine.runRenderLoop(() => {
+      scene.render();
+    });
+
     let gameLoopStarted = false;
 
     function startGameLoop(): void {
       if (gameLoopStarted) return;
       gameLoopStarted = true;
 
+      // Replace idle loop with full game loop
+      engine.stopRenderLoop();
       engine.runRenderLoop(() => {
         const deltaMs = engine.getDeltaTime();
         const dt = Math.min(deltaMs / 1000, 0.05); // seconds, capped at 50ms
