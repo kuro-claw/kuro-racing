@@ -1,0 +1,26 @@
+{
+  "name": "kuro-racing",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Web-based 3D racing game with realistic physics and synthwave aesthetic",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^6.46.0",
+    "@babylonjs/loaders": "^6.46.0",
+    "@babylonjs/gui": "^6.46.0",
+    "@babylonjs/serializers": "^6.46.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}
