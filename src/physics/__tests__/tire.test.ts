@@ -56,7 +56,7 @@ describe('Tire Model', () => {
       expect(postPeak).toBeLessThan(peakForce);
     });
 
-    it('scales with load (more load = more grip, but non-linear)', () => {
+    it('scales with load (more load = more grip)', () => {
       const fy3000 = lateralForce(2, 3000);
       const fy4000 = lateralForce(2, 4000);
       const fy6000 = lateralForce(2, 6000);
@@ -66,7 +66,7 @@ describe('Tire Model', () => {
 
       const ratio6k_3k = fy6000 / fy3000;
       expect(ratio6k_3k).toBeGreaterThan(1);
-      expect(ratio6k_3k).toBeLessThan(2);
+      expect(ratio6k_3k).toBeLessThanOrEqual(2); // linear scaling: ratio = 2.0
     });
   });
 

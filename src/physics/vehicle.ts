@@ -173,9 +173,11 @@ export class Vehicle {
       state.wheelOmega[i] = Math.max(-maxOmega, Math.min(maxOmega, state.wheelOmega[i]));
     }
 
-    // ── Drag + rolling resistance ────────────────────────────────
-    totalFZ -= aero.totalDrag * Math.sign(speedForward || 1);
-    totalFZ -= 0.015 * config.mass * this.GRAVITY * Math.sign(speedForward || 1);
+    // ── Drag + rolling resistance (only when moving) ──────────────
+    if (Math.abs(speedForward) > 0.1) {
+      totalFZ -= aero.totalDrag * Math.sign(speedForward);
+      totalFZ -= 0.015 * config.mass * this.GRAVITY * Math.sign(speedForward);
+    }
 
     // ── Acceleration → velocity ──────────────────────────────────
     const ax = totalFX / config.mass;

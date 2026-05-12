@@ -73,11 +73,10 @@ export function calcPacejkaCoeffs(
   load: number,
   config: TireConfig = DEFAULT_TIRE_CONFIG
 ): PacejkaCoeffs {
-  const sqrtLoad = Math.sqrt(load);
   return {
     B: config.stiffnessB,
     C: config.shapeC,
-    D: config.peakScale * sqrtLoad,
+    D: config.peakScale * load, // peak force = mu * normal load
     E: config.curvatureE,
   };
 }
@@ -138,9 +137,8 @@ export function combinedForce(
   const FyPure = lateralForce(slipAngleDeg, load, config);
   const FxPure = longitudinalForce(slipRatio, load, config);
 
-  const sqrtLoad = Math.sqrt(load);
-  const FyMax = config.peakScale * sqrtLoad;
-  const FxMax = config.peakScale * sqrtLoad;
+  const FyMax = config.peakScale * load;
+  const FxMax = config.peakScale * load;
 
   const fyRatio = Math.abs(FyPure) / FyMax;
   const fxRatio = Math.abs(FxPure) / FxMax;
