@@ -50,6 +50,7 @@ export interface VehicleState {
   rpm: number;
   steerAngle: number;      // radians
   grounded: boolean[];
+  _lastLongAccel?: number; // cached longitudinal accel for next frame's load transfer
 }
 
 // ─── Vehicle Class ───────────────────────────────────────────────
@@ -94,12 +95,6 @@ export class Vehicle {
     const { _config: config, _state: state, _input: input } = this;
     const safeDt = Math.min(dt, 0.05);
 
-    // ── Steering ────────────────────────────────────────────────
-    const targetSteer = input.steer * config.maxSteerAngle;
-    const steerDelta = targetSteer - state.steerAngle;
-    const maxDelta = config.steerSpeed * safeDt;
-    state.steerAngle += Math.max(-maxDelta, Math.min(maxDelta, steerDelta));
-
     // ── Local velocity ───────────────────────────────────────────
     const rot = this._node.rotationQuaternion!;
     const rotMat = Matrix.Identity();
@@ -109,15 +104,40 @@ export class Vehicle {
     const speedForward = localVel.z;
     const speedLateral = localVel.x;
 
+    // ── Steering ─────────────────────────────────────────────────
+    const targetSteer = input.steer * config.maxSteerAngle;
+    const steerDelta = targetSteer - state.steerAngle;
+    const maxDelta = config.steerSpeed * safeDt;
+    state.steerAngle += Math.max(-maxDelta, Math.min(maxDelta, steerDelta));
+
+    // ── Wheel loads ──────────────────────────────────────────────
+    // Use estimated longitudinal acceleration from last frame for load transfer.
+    // This breaks the circular dependency (need forces to get accel, need loads for forces).
+    const lateralAccel = state.angularVelocity.y * speedForward;
+    const estLongAccel = (state._lastLongAccel ?? 0);
+    const wheelLoads = allWheelLoads(lateralAccel, estLongAccel);
+
+    // ── RPM: blend of ground speed and wheel spin ────────────────
+    // At launch ground speed is near-zero, so we blend with actual wheel omega
+    // to break the chicken-and-egg (no speed → no RPM → no torque → no speed)
+    const wheelRadius = this._config.wheels[2]?.radius ?? 0.33;
+    const avgDrivenOmega = this._avgDrivenWheelOmega();
+    const gearRatio = (PHANTOM_GEARBOX.ratios[state.gear - 1] ?? 1) * PHANTOM_GEARBOX.finalDrive;
+    const wheelRpm = (avgDrivenOmega * gearRatio * 60) / (2 * Math.PI);
+    const groundOmega = Math.abs(speedForward) / wheelRadius;
+    const groundRpm = (groundOmega * gearRatio * 60) / (2 * Math.PI);
+    // Blend: at low speed trust wheel spin more, at high speed trust ground speed
+    const blendFactor = Math.min(1, Math.abs(speedForward) / 10);
+    const blendedRpm = wheelRpm * (1 - blendFactor) + groundRpm * blendFactor;
+    state.rpm = Math.max(800, Math.min(7500, blendedRpm));
+
     // ── Auto-shift ───────────────────────────────────────────────
     this._autoShift();
 
     // ── Aero ─────────────────────────────────────────────────────
     const aero = aeroLoad(Math.abs(speedForward));
 
-    // ── Wheel loads ──────────────────────────────────────────────
-    const lateralAccel = state.angularVelocity.y * speedForward;
-    const wheelLoads = allWheelLoads(lateralAccel, 0);
+    // ── Wheel normal forces (with aero downforce) ────────────────
     const frontNormal = Math.max(0, wheelLoads.frontLeft + wheelLoads.frontRight + aero.frontLoad);
     const rearNormal = Math.max(0, wheelLoads.rearLeft + wheelLoads.rearRight + aero.rearLoad);
     const wheelNormals = [
@@ -146,34 +166,62 @@ export class Vehicle {
       if (normal <= 0) { state.grounded[i] = false; continue; }
       state.grounded[i] = true;
 
-      const wheelSurfaceSpeed = state.wheelOmega[i] * wheel.radius;
-      const steerContrib = wheel.steered ? state.steerAngle : 0;
-      const slipAngleDeg = calcSlipAngle(speedForward, speedLateral - steerContrib * speedForward);
-      const slipRatio = calcSlipRatio(wheelSurfaceSpeed, speedForward);
-
-      const fy = lateralForce(slipAngleDeg, normal);
-      const fx = longitudinalForce(slipRatio, normal);
-      // fx is negative for driving slip (convention: negative slip = driving).
-      // Forward force in local +Z is -fx; lateral force adds directly.
-      totalFZ -= fx;
-      totalFX += fy;
-
-      // Wheel spin
+      // Wheel spin: update from net torque (drive + brake + tire reaction)
       let driveTorque = 0;
       if (wheel.driven) {
         driveTorque = i === 2 ? drivetrain.leftWheelTorque : drivetrain.rightWheelTorque;
       }
-      const brakeTorque = input.brake * 1200 * (state.wheelOmega[i] >= 0 ? 1 : -1);
-      const tireTorque = fx * wheel.radius; // reaction torque opposes wheel spin
-      const netTorque = driveTorque - brakeTorque + tireTorque;
-      const wheelInertia = 1.2;
-      state.wheelOmega[i] += (netTorque / wheelInertia) * safeDt;
-      // Soft clamp to prevent spin beyond reasonable limits
-      const maxOmega = Math.abs(speedForward) / wheel.radius + 20;
+      const brakeTorque = input.brake * 1500 * (state.wheelOmega[i] >= 0 ? 1 : -1);
+
+      // Slip calculations — for driven wheels, compute slip ratio from
+      // the DIFFERENCE between wheel surface speed and ground speed.
+      // For non-driven wheels, use ground speed as wheel speed.
+      const wheelSurfaceSpeed = state.wheelOmega[i] * wheel.radius;
+      const steerContrib = wheel.steered ? state.steerAngle : 0;
+      const slipAngleDeg = calcSlipAngle(speedForward, speedLateral - steerContrib * speedForward);
+
+      // For driven wheels, engine torque creates a positive slip ratio
+      // that generates forward force. At launch (both speeds zero), we
+      // need to break the deadlock: apply engine torque directly as force.
+      let fx: number;
+      if (wheel.driven && Math.abs(speedForward) < 0.1 && state.wheelOmega[i] < 1) {
+        // Launch assist: at standstill with driven wheels, apply drive torque
+        // directly as longitudinal force to break the zero-slip deadlock.
+        let driveTorque = 0;
+        if (i === 2) driveTorque = drivetrain.leftWheelTorque;
+        else if (i === 3) driveTorque = drivetrain.rightWheelTorque;
+        fx = driveTorque / wheel.radius;
+        // Update wheel spin from drive torque (this gets wheel spin moving)
+        const netTorque = driveTorque;
+        const wheelInertia = 1.2;
+        state.wheelOmega[i] += (netTorque / wheelInertia) * safeDt;
+      } else {
+        const slipRatio = calcSlipRatio(wheelSurfaceSpeed, speedForward);
+        fx = longitudinalForce(slipRatio, normal);
+
+        // Wheel spin dynamics
+        let driveTorque = 0;
+        if (wheel.driven) {
+          driveTorque = i === 2 ? drivetrain.leftWheelTorque : drivetrain.rightWheelTorque;
+        }
+        const brakeTorque = input.brake * 1500 * (state.wheelOmega[i] >= 0 ? 1 : -1);
+        const tireTorque = fx * wheel.radius;
+        const netTorque = driveTorque - brakeTorque + tireTorque;
+        const wheelInertia = 1.2;
+        state.wheelOmega[i] += (netTorque / wheelInertia) * safeDt;
+      }
+      // Allow generous wheel spin for launch, but cap at ~3x ground speed + margin
+      const maxOmega = Math.abs(speedForward) / wheel.radius + 80;
       state.wheelOmega[i] = Math.max(-maxOmega, Math.min(maxOmega, state.wheelOmega[i]));
+
+      const fy = lateralForce(slipAngleDeg, normal);
+      // fx is negative for driving slip (convention: negative slip = driving).
+      // Forward force in local +Z is -fx; lateral force adds directly.
+      totalFZ -= fx;
+      totalFX += fy;
     }
 
-    // ── Drag + rolling resistance (only when moving) ──────────────
+    // ── Drag + rolling resistance ────────────────────────────────
     if (Math.abs(speedForward) > 0.1) {
       totalFZ -= aero.totalDrag * Math.sign(speedForward);
       totalFZ -= 0.015 * config.mass * this.GRAVITY * Math.sign(speedForward);
@@ -187,17 +235,20 @@ export class Vehicle {
     worldAccel.y = 0;
     state.velocity.addInPlace(worldAccel.scale(safeDt));
 
+    // Store longitudinal accel for next frame's load transfer
+    state._lastLongAccel = az;
+
     // Speed cap
     const spd = state.velocity.length();
     if (spd > 90) state.velocity.scaleInPlace(90 / spd);
 
     // ── Yaw (simplified bicycle model) ───────────────────────────
-    if (Math.abs(speedForward) > 0.5) {
-      const corneringStiffness = 8000;
-      const yawTorque = corneringStiffness * state.steerAngle;
-      const yawInertia = config.mass * config.cgHeight * 1.5;
-      state.angularVelocity.y += (yawTorque / yawInertia) * safeDt;
-    }
+    // Allow steering even at very low speed for launch maneuverability
+    const steerEffectiveness = Math.min(1, Math.abs(speedForward) / 2) + 0.3;
+    const corneringStiffness = 8000;
+    const yawTorque = corneringStiffness * state.steerAngle * steerEffectiveness;
+    const yawInertia = config.mass * config.cgHeight * 1.5;
+    state.angularVelocity.y += (yawTorque / yawInertia) * safeDt;
     // Yaw damping
     state.angularVelocity.y *= Math.exp(-3.0 * safeDt);
 
@@ -207,13 +258,6 @@ export class Vehicle {
 
     const deltaYaw = Quaternion.RotationAxis(Vector3.Up(), state.angularVelocity.y * safeDt);
     this._node.rotationQuaternion = rot.multiply(deltaYaw);
-
-    // ── RPM update (derived from vehicle speed × gear ratio) ──────
-    const wheelRadius = this._config.wheels[2]?.radius ?? 0.33;
-    const groundOmega = Math.abs(speedForward) / wheelRadius;
-    const ratio = (PHANTOM_GEARBOX.ratios[state.gear - 1] ?? 1) * PHANTOM_GEARBOX.finalDrive;
-    const speedRpm = (groundOmega * ratio * 60) / (2 * Math.PI);
-    state.rpm = Math.max(800, Math.min(7500, speedRpm));
   }
 
   // ─── Private helpers ─────────────────────────────────────────
