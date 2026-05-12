@@ -153,7 +153,9 @@ export class Vehicle {
 
       const fy = lateralForce(slipAngleDeg, normal);
       const fx = longitudinalForce(slipRatio, normal);
-      totalFZ += fx;
+      // fx is negative for driving slip (convention: negative slip = driving).
+      // Forward force in local +Z is -fx; lateral force adds directly.
+      totalFZ -= fx;
       totalFX += fy;
 
       // Wheel spin
@@ -162,7 +164,7 @@ export class Vehicle {
         driveTorque = i === 2 ? drivetrain.leftWheelTorque : drivetrain.rightWheelTorque;
       }
       const brakeTorque = input.brake * 1200 * (state.wheelOmega[i] >= 0 ? 1 : -1);
-      const tireTorque = -fx * wheel.radius;
+      const tireTorque = fx * wheel.radius; // reaction torque opposes wheel spin
       const netTorque = driveTorque - brakeTorque + tireTorque;
       const wheelInertia = 1.2;
       state.wheelOmega[i] += (netTorque / wheelInertia) * safeDt;
