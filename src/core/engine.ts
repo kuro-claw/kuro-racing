@@ -1,10 +1,14 @@
 import { Engine, Scene, Vector3 } from '@babylonjs/core';
 import { CameraManager } from './camera';
+import { LightingManager } from './lighting';
+import { EnvironmentManager } from './environment';
 
 export interface KuroRacingEngine {
   engine: Engine;
   scene: Scene;
   cameraManager: CameraManager;
+  lighting: LightingManager;
+  environment: EnvironmentManager;
 }
 
 export async function init(): Promise<KuroRacingEngine> {
@@ -25,9 +29,15 @@ export async function init(): Promise<KuroRacingEngine> {
   const cameraManager = new CameraManager(scene);
   cameraManager.attach();
 
+  const lighting = new LightingManager(scene);
+  lighting.init();
+
+  const environment = new EnvironmentManager(scene);
+  environment.init();
+
   window.addEventListener('resize', () => {
     engine.resize();
   });
 
-  return { engine, scene, cameraManager };
+  return { engine, scene, cameraManager, lighting, environment };
 }

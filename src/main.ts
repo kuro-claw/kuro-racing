@@ -3,7 +3,7 @@ import { Mesh, Vector3 } from '@babylonjs/core';
 
 async function bootstrap(): Promise<void> {
   try {
-    const { engine, scene, cameraManager } = await init();
+    const { engine, scene, cameraManager, lighting, environment } = await init();
 
     const testSphere = Mesh.CreateSphere('testSphere', 16, 1, scene);
     testSphere.position = new Vector3(0, 1, 0);
@@ -23,6 +23,8 @@ async function bootstrap(): Promise<void> {
       const targetRotation = new Vector3(0, -angle + Math.PI, 0);
       cameraManager.setTarget(testSphere.position, targetRotation);
       cameraManager.update();
+      lighting.update();
+      environment.update();
       scene.render();
     });
 
