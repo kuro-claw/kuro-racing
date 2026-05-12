@@ -107,6 +107,12 @@ async function bootstrap(): Promise<void> {
         vehicle.setInput(inputState);
         vehicle.update(dt);
 
+        // Debug: log position & input every 60 frames
+        if (Math.round(now / 16) % 60 === 0) {
+          const p = vehicle.position;
+          console.log(`[KR] pos=(${p.x.toFixed(1)},${p.z.toFixed(1)}) spd=${vehicle.speedKmh.toFixed(1)} rpm=${vehicle.rpm.toFixed(0)} throttle=${inputState.throttle} gear=${vehicle.gear}`);
+        }
+
         // Time trial (uses ms timestamp)
         timeTrial.update(vehicle, now);
 
