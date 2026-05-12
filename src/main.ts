@@ -1,7 +1,7 @@
 // ─── KuroRacing — Main Entry Point ───────────────────────────────
 // Wires all game systems together into a running game.
 
-import { Vector3 } from '@babylonjs/core';
+import { Quaternion, Vector3 } from '@babylonjs/core';
 import { init } from './core/engine';
 import { InputManager } from './core/input';
 import { Vehicle } from './physics/vehicle';
@@ -36,12 +36,18 @@ async function bootstrap(): Promise<void> {
     // ── 3. Vehicle ────────────────────────────────────────────
     const vehicle = new Vehicle(scene, PHANTOM_CONFIG);
 
-    // Position vehicle at track start — a few samples in so it's clear of barriers
+    // Position and orient vehicle at track start
     const startSample = trackSamples[3] ?? trackSamples[0];
     if (startSample) {
       vehicle.node.position.copyFrom(
         startSample.position.add(new Vector3(0, 0.5, 0))
       );
+      // Orient car along track tangent
+      const fwd = startSample.tangent.clone();
+      fwd.y = 0;
+      fwd.normalize();
+      const angle = Math.atan2(fwd.x, fwd.z);
+      vehicle.node.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), angle);
     }
 
     // ── 4. Input ──────────────────────────────────────────────
