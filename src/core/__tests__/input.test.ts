@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   InputState,
   InputConfig,
@@ -72,11 +72,11 @@ describe('mapRange', () => {
   });
 });
 
-// ─── KeyboardInput (integrated) ──────────────────────────────────
+// ─── KeyboardInput ───────────────────────────────────────────────
 
+// Remove the broken KeyboardInput test block
 describe('KeyboardInput (integrated)', () => {
   function createMockDocument() {
-    const pressed = new Set<string>();
     const listeners: Map<string, Function[]> = new Map();
     return Object.assign(
       {
@@ -97,14 +97,13 @@ describe('KeyboardInput (integrated)', () => {
           const h = listeners.get(type) || [];
           h.forEach((fn) => fn({ key }));
         },
-        _pressed: pressed,
       }
-    ) as unknown as Document & { dispatchKey: (key: string, type: 'keydown' | 'keyup') => void };
+    ) as unknown as (Document & { dispatchKey: (key: string, type: 'keydown' | 'keyup') => void });
   }
 
   it('W produces throttle=1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('w', 'keydown');
     const state = kb.update();
@@ -114,7 +113,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('S produces brake=1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('s', 'keydown');
     const state = kb.update();
@@ -124,7 +123,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('A produces steer=-1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('a', 'keydown');
     const state = kb.update();
@@ -133,7 +132,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('D produces steer=1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('d', 'keydown');
     const state = kb.update();
@@ -142,7 +141,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('Arrow up produces throttle=1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('ArrowUp', 'keydown');
     const state = kb.update();
@@ -151,7 +150,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('Arrow down produces brake=1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('ArrowDown', 'keydown');
     const state = kb.update();
@@ -160,7 +159,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('Arrow left produces steer=-1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('ArrowLeft', 'keydown');
     const state = kb.update();
@@ -169,7 +168,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('Arrow right produces steer=1', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('ArrowRight', 'keydown');
     const state = kb.update();
@@ -178,7 +177,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('Space produces clutch=true', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey(' ', 'keydown');
     const state = kb.update();
@@ -187,7 +186,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('Space up produces clutch=false', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey(' ', 'keydown');
     doc.dispatchKey(' ', 'keyup');
@@ -197,7 +196,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('combining throttle + steer works', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('w', 'keydown');
     doc.dispatchKey('d', 'keydown');
@@ -208,7 +207,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('key up clears that input', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     doc.dispatchKey('w', 'keydown');
     doc.dispatchKey('w', 'keyup');
@@ -218,9 +217,8 @@ describe('KeyboardInput (integrated)', () => {
 
   it('deadzone zeroes out small steer values', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document, config: { deadzone: 0.1 } });
+    const kb = new KeyboardInput({ document: doc, config: { deadzone: 0.1 } });
     kb.attach();
-    // Keyboard is digital (0 or 1), so deadzone only applies to combined half-left/half-right scenarios
     // For keyboard, A and D both pressed = steer=0 (they cancel)
     doc.dispatchKey('a', 'keydown');
     doc.dispatchKey('d', 'keydown');
@@ -230,7 +228,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('detach removes event listeners', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     kb.detach();
     doc.dispatchKey('w', 'keydown');
@@ -240,7 +238,7 @@ describe('KeyboardInput (integrated)', () => {
 
   it('returns empty state by default', () => {
     const doc = createMockDocument();
-    const kb = new KeyboardInput({ document: doc as unknown as Document });
+    const kb = new KeyboardInput({ document: doc });
     kb.attach();
     const state = kb.update();
     expect(state.throttle).toBe(0);
@@ -253,20 +251,20 @@ describe('KeyboardInput (integrated)', () => {
 // ─── GamepadInput ────────────────────────────────────────────────
 
 describe('GamepadInput', () => {
-  let gamepads: Gamepad[];
+  let gamepadObjects: any[];
   let connectListeners: Function[];
   let disconnectListeners: Function[];
 
   function createMockGamepadEnv() {
-    gamepads = [];
+    gamepadObjects = [];
     connectListeners = [];
     disconnectListeners = [];
 
     const mockNavigator = {
       getGamepads: () => {
         const result: (Gamepad | null)[] = [];
-        for (let i = 0; i < Math.max(4, gamepads.length + 1); i++) {
-          const gp = gamepads.find((g) => g.index === i);
+        for (let i = 0; i < Math.max(4, gamepadObjects.length + 1); i++) {
+          const gp = gamepadObjects.find((g) => g.index === i);
           result[i] = gp || null;
         }
         return result as Gamepad[];
@@ -295,32 +293,31 @@ describe('GamepadInput', () => {
     return { mockNavigator, mockWindow };
   }
 
+  function makeGamepadButton(pressed: boolean, value: number): GamepadButton {
+    return { pressed, value, touched: false };
+  }
+
   function addGamepad(index: number, axes?: number[], buttons?: number[]) {
-    const makeButton = (v: number): GamepadButton => ({
-      pressed: v > 0,
-      value: v,
-      touched: v > 0,
-    });
-    const btns: GamepadButton[] = (buttons || []).map(makeButton);
-    // Pad to 16 buttons (standard)
+    const btns: GamepadButton[] = (buttons || []).map((v) => makeGamepadButton(v > 0, v));
     while (btns.length < 16) {
-      btns.push(makeButton(0));
+      btns.push(makeGamepadButton(false, 0));
     }
-    gamepads.push({
+    const gp: any = {
       index,
       connected: true,
       axes: axes || [0, 0, 0, 0],
-      buttons: btns as unknown as readonly GamepadButton[],
+      buttons: btns,
       timestamp: 0,
       id: `test-gamepad-${index}`,
       mapping: 'standard',
       vibrationActuator: null,
-    } as unknown as Gamepad);
+    };
+    gamepadObjects.push(gp);
   }
 
   it('left trigger maps to throttle', () => {
     const { mockNavigator, mockWindow } = createMockGamepadEnv();
-    addGamepad(0, [0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0.8, 0]); // button 6 = left trigger
+    addGamepad(0, [0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0.8, 0]);
     const gp = new GamepadInput({
       navigator: mockNavigator as unknown as Navigator,
       window: mockWindow as unknown as Window,
@@ -332,7 +329,7 @@ describe('GamepadInput', () => {
 
   it('right trigger maps to brake', () => {
     const { mockNavigator, mockWindow } = createMockGamepadEnv();
-    addGamepad(0, [0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0.6]); // button 7 = right trigger
+    addGamepad(0, [0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0.6]);
     const gp = new GamepadInput({
       navigator: mockNavigator as unknown as Navigator,
       window: mockWindow as unknown as Window,
@@ -344,14 +341,13 @@ describe('GamepadInput', () => {
 
   it('left stick X maps to steer with deadzone', () => {
     const { mockNavigator, mockWindow } = createMockGamepadEnv();
-    addGamepad(0, [0.7, 0, 0, 0]); // axis 0 = left stick X
+    addGamepad(0, [0.7, 0, 0, 0]);
     const gp = new GamepadInput({
       navigator: mockNavigator as unknown as Navigator,
       window: mockWindow as unknown as Window,
     });
     gp.attach();
     const state = gp.update();
-    // 0.7 with 0.1 deadzone -> applyDeadzone(0.7, 0.1)
     expect(state.steer).toBeGreaterThan(0);
     expect(state.steer).toBeLessThanOrEqual(1);
   });
@@ -389,11 +385,10 @@ describe('GamepadInput', () => {
       window: mockWindow as unknown as Window,
     });
     gp.attach();
-    // Simulate disconnect by replacing the gamepad reference
-    const disconnected = { ...gamepads[0], connected: false } as Gamepad;
-    gamepads[0] = disconnected;
+    // Simulate disconnect
+    gamepadObjects[0].connected = false;
     for (const listener of disconnectListeners) {
-      listener({ gamepad: gamepads[0] } as GamepadEvent);
+      listener({ gamepad: gamepadObjects[0] } as GamepadEvent);
     }
     const state = gp.update();
     expect(state.throttle).toBe(0);
@@ -435,14 +430,12 @@ describe('GamepadInput', () => {
     });
     gp.attach();
     gp.detach();
-    // After detach, state should be zeroed
     const state = gp.update();
     expect(state.throttle).toBe(0);
   });
 
   it('D-pad left maps to steer=-1', () => {
     const { mockNavigator, mockWindow } = createMockGamepadEnv();
-    // D-pad left: button 14 pressed
     addGamepad(0, [0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]);
     const gp = new GamepadInput({
       navigator: mockNavigator as unknown as Navigator,
@@ -455,7 +448,6 @@ describe('GamepadInput', () => {
 
   it('D-pad right maps to steer=1', () => {
     const { mockNavigator, mockWindow } = createMockGamepadEnv();
-    // D-pad right: button 15 pressed
     addGamepad(0, [0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
     const gp = new GamepadInput({
       navigator: mockNavigator as unknown as Navigator,
@@ -500,12 +492,12 @@ describe('TouchInput', () => {
           h.forEach((fn) => fn({ type, touches: touchList, changedTouches: touchList }));
         },
       }
-    ) as unknown as Document & { dispatchTouch: (type: string, touches: any[]) => void };
+    ) as unknown as (Document & { dispatchTouch: (type: string, touches: any[]) => void });
   }
 
   it('right-bottom zone produces throttle', () => {
     const doc = createMockDocument();
-    const touch = new TouchInput({ document: doc as unknown as Document });
+    const touch = new TouchInput({ document: doc });
     touch.attach();
     doc.dispatchTouch('touchstart', [{ clientX: 600, clientY: 500, identifier: 0 }]);
     const state = touch.update();
@@ -514,7 +506,7 @@ describe('TouchInput', () => {
 
   it('right-top zone produces brake', () => {
     const doc = createMockDocument();
-    const touch = new TouchInput({ document: doc as unknown as Document });
+    const touch = new TouchInput({ document: doc });
     touch.attach();
     doc.dispatchTouch('touchstart', [{ clientX: 600, clientY: 100, identifier: 0 }]);
     const state = touch.update();
@@ -523,7 +515,7 @@ describe('TouchInput', () => {
 
   it('left zone X position maps to steer (-1 to 1)', () => {
     const doc = createMockDocument();
-    const touch = new TouchInput({ document: doc as unknown as Document });
+    const touch = new TouchInput({ document: doc });
     touch.attach();
     // Far left (x=50, halfWidth=400) -> mapRange(50, 0, 400, -1, 1) = -0.75
     doc.dispatchTouch('touchstart', [{ clientX: 50, clientY: 300, identifier: 0 }]);
@@ -538,7 +530,7 @@ describe('TouchInput', () => {
 
   it('two fingers sets clutch', () => {
     const doc = createMockDocument();
-    const touch = new TouchInput({ document: doc as unknown as Document });
+    const touch = new TouchInput({ document: doc });
     touch.attach();
     doc.dispatchTouch('touchstart', [
       { clientX: 200, clientY: 300, identifier: 0 },
@@ -550,7 +542,7 @@ describe('TouchInput', () => {
 
   it('touchend clears input', () => {
     const doc = createMockDocument();
-    const touch = new TouchInput({ document: doc as unknown as Document });
+    const touch = new TouchInput({ document: doc });
     touch.attach();
     doc.dispatchTouch('touchstart', [{ clientX: 600, clientY: 500, identifier: 0 }]);
     doc.dispatchTouch('touchend', [{ clientX: 600, clientY: 500, identifier: 0 }]);
@@ -560,7 +552,7 @@ describe('TouchInput', () => {
 
   it('returns empty state by default', () => {
     const doc = createMockDocument();
-    const touch = new TouchInput({ document: doc as unknown as Document });
+    const touch = new TouchInput({ document: doc });
     touch.attach();
     const state = touch.update();
     expect(state.throttle).toBe(0);
@@ -571,7 +563,7 @@ describe('TouchInput', () => {
 
   it('detach removes listeners', () => {
     const doc = createMockDocument();
-    const touch = new TouchInput({ document: doc as unknown as Document });
+    const touch = new TouchInput({ document: doc });
     touch.attach();
     touch.detach();
     doc.dispatchTouch('touchstart', [{ clientX: 600, clientY: 500, identifier: 0 }]);
@@ -584,7 +576,6 @@ describe('TouchInput', () => {
 
 describe('InputManager', () => {
   function createMockEnv() {
-    // Keyboard mock
     const kbListeners: Map<string, Function[]> = new Map();
     const mockDoc = Object.assign(
       {
@@ -609,20 +600,19 @@ describe('InputManager', () => {
         dispatchTouch(type: string, touches: { clientX: number; clientY: number; identifier: number }[]) {
           const h = kbListeners.get(type) || [];
           const touchList: any = { length: touches.length, item: (i: number) => touches[i] || null };
-          touches.forEach((t) => { touchList[t.identifier] = t; });
+          touches.forEach((t: any) => { touchList[t.identifier] = t; });
           h.forEach((fn) => fn({ type, touches: touchList, changedTouches: touchList }));
         },
       }
-    ) as unknown as Document & { dispatchKey: any; dispatchTouch: any };
+    ) as unknown as (Document & { dispatchKey: any; dispatchTouch: any });
 
-    // Gamepad mock
-    const gamepads: Gamepad[] = [];
+    const gamepadObjects: any[] = [];
     const gpListeners: { connect: Function[]; disconnect: Function[] } = { connect: [], disconnect: [] };
     const mockNavigator = {
       getGamepads: () => {
         const result: (Gamepad | null)[] = [];
         for (let i = 0; i < 4; i++) {
-          const gp = gamepads.find((g) => g.index === i);
+          const gp = gamepadObjects.find((g) => g.index === i);
           result[i] = gp || null;
         }
         return result as Gamepad[];
@@ -647,13 +637,35 @@ describe('InputManager', () => {
       clearInterval: () => {},
     };
 
-    return { mockDoc, mockNavigator, mockWindow, gamepads, gpListeners, kbListeners };
+    function makeGamepadButton(pressed: boolean, value: number): GamepadButton {
+      return { pressed, value, touched: false };
+    }
+
+    function addGamepad(index: number, axes?: number[], buttons?: number[]) {
+      const btns: GamepadButton[] = (buttons || []).map((v) => makeGamepadButton(v > 0, v));
+      while (btns.length < 16) {
+        btns.push(makeGamepadButton(false, 0));
+      }
+      const gp: any = {
+        index,
+        connected: true,
+        axes: axes || [0, 0, 0, 0],
+        buttons: btns,
+        timestamp: 0,
+        id: `test-${index}`,
+        mapping: 'standard',
+        vibrationActuator: null,
+      };
+      gamepadObjects.push(gp);
+    }
+
+    return { mockDoc, mockNavigator, mockWindow, gamepadObjects, gpListeners, addGamepad, kbListeners };
   }
 
   it('auto mode selects gamepad when connected', () => {
     const env = createMockEnv();
     const manager = new InputManager({
-      document: env.mockDoc as unknown as Document,
+      document: env.mockDoc,
       navigator: env.mockNavigator as unknown as Navigator,
       window: env.mockWindow as unknown as Window,
     });
@@ -661,27 +673,10 @@ describe('InputManager', () => {
     manager.attach();
 
     // Connect a gamepad with throttle input
-    const makeButton = (v: number): GamepadButton => ({
-      pressed: v > 0,
-      value: v,
-      touched: v > 0,
-    });
-    const btns: GamepadButton[] = [];
-    for (let i = 0; i < 16; i++) btns.push(makeButton(0));
-    btns[6] = makeButton(0.8);
-    env.gamepads.push({
-      index: 0,
-      connected: true,
-      axes: [0, 0, 0, 0],
-      buttons: btns as unknown as readonly GamepadButton[],
-      timestamp: 0,
-      id: 'test',
-      mapping: 'standard',
-      vibrationActuator: null,
-    } as unknown as Gamepad);
+    env.addGamepad(0, [0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0.8, 0]);
     // Fire connect event
     for (const fn of env.gpListeners.connect) {
-      fn({ gamepad: env.gamepads[0] } as GamepadEvent);
+      fn({ gamepad: env.gamepadObjects[0] } as GamepadEvent);
     }
 
     const state = manager.update();
@@ -691,13 +686,12 @@ describe('InputManager', () => {
   it('merging takes max for throttle/brake', () => {
     const env = createMockEnv();
     const manager = new InputManager({
-      document: env.mockDoc as unknown as Document,
+      document: env.mockDoc,
       navigator: env.mockNavigator as unknown as Navigator,
       window: env.mockWindow as unknown as Window,
     });
     manager.attach();
 
-    // Keyboard: throttle = 1
     env.mockDoc.dispatchKey('w', 'keydown');
     const state = manager.update();
     expect(state.throttle).toBe(1);
@@ -706,13 +700,12 @@ describe('InputManager', () => {
   it('merging sums and clamps steer', () => {
     const env = createMockEnv();
     const manager = new InputManager({
-      document: env.mockDoc as unknown as Document,
+      document: env.mockDoc,
       navigator: env.mockNavigator as unknown as Navigator,
       window: env.mockWindow as unknown as Window,
     });
     manager.attach();
 
-    // Keyboard: steer right (D) = 1
     env.mockDoc.dispatchKey('d', 'keydown');
     const state = manager.update();
     expect(state.steer).toBe(1);
@@ -721,7 +714,7 @@ describe('InputManager', () => {
   it('detach stops all input', () => {
     const env = createMockEnv();
     const manager = new InputManager({
-      document: env.mockDoc as unknown as Document,
+      document: env.mockDoc,
       navigator: env.mockNavigator as unknown as Navigator,
       window: env.mockWindow as unknown as Window,
     });
@@ -735,7 +728,7 @@ describe('InputManager', () => {
   it('setSource selects specific input', () => {
     const env = createMockEnv();
     const manager = new InputManager({
-      document: env.mockDoc as unknown as Document,
+      document: env.mockDoc,
       navigator: env.mockNavigator as unknown as Navigator,
       window: env.mockWindow as unknown as Window,
     });
@@ -749,7 +742,7 @@ describe('InputManager', () => {
   it('returns empty state by default', () => {
     const env = createMockEnv();
     const manager = new InputManager({
-      document: env.mockDoc as unknown as Document,
+      document: env.mockDoc,
       navigator: env.mockNavigator as unknown as Navigator,
       window: env.mockWindow as unknown as Window,
     });
