@@ -208,10 +208,21 @@ export class Vehicle {
     const deltaYaw = Quaternion.RotationAxis(Vector3.Up(), state.angularVelocity.y * safeDt);
     this._node.rotationQuaternion = rot.multiply(deltaYaw);
 
-    // ── RPM update ───────────────────────────────────────────────
-    const avgDrivenOmega = this._avgDrivenWheelOmega();
+    // ── RPM update (derived from vehicle speed × gear ratio) ──────
+    const wheelRadius = this._config.wheels[2]?.radius ?? 0.33;
+    const groundOmega = Math.abs(speedForward) / wheelRadius; // rad/s at wheel
     const ratio = (PHANTOM_GEARBOX.ratios[state.gear - 1] ?? 1) * PHANTOM_GEARBOX.finalDrive;
-    state.rpm = Math.max(800, Math.min(7500, (avgDrivenOmega * ratio * 60) / (2 * Math.PI)));
+    const speedRpm = (groundOmega * ratio * 60) / (2 * Math.PI);
+    state.rpm = Math.max(800, Math.min(7500, speedRpm));
+
+    // Sync wheel omega to ground speed so slip ratio stays meaningful
+    for (let i = 0; i < this._config.wheels.length; i++) {
+      if (this._config.wheels[i]!.driven) {
+        // Blend toward ground-truth omega — prevents runaway spin
+        const targetOmega = Math.sign(speedForward || 1) * groundOmega;
+        state.wheelOmega[i] = targetOmega;
+      }
+    }
   }
 
   // ─── Private helpers ─────────────────────────────────────────
