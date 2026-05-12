@@ -1,8 +1,10 @@
 import { Engine, Scene, Vector3 } from '@babylonjs/core';
+import { CameraManager } from './camera';
 
 export interface KuroRacingEngine {
   engine: Engine;
   scene: Scene;
+  cameraManager: CameraManager;
 }
 
 export async function init(): Promise<KuroRacingEngine> {
@@ -20,13 +22,12 @@ export async function init(): Promise<KuroRacingEngine> {
   const scene = new Scene(engine);
   scene.gravity = new Vector3(0, -9.81, 0);
 
-  engine.runRenderLoop(() => {
-    scene.render();
-  });
+  const cameraManager = new CameraManager(scene);
+  cameraManager.attach();
 
   window.addEventListener('resize', () => {
     engine.resize();
   });
 
-  return { engine, scene };
+  return { engine, scene, cameraManager };
 }
