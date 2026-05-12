@@ -210,19 +210,10 @@ export class Vehicle {
 
     // ── RPM update (derived from vehicle speed × gear ratio) ──────
     const wheelRadius = this._config.wheels[2]?.radius ?? 0.33;
-    const groundOmega = Math.abs(speedForward) / wheelRadius; // rad/s at wheel
+    const groundOmega = Math.abs(speedForward) / wheelRadius;
     const ratio = (PHANTOM_GEARBOX.ratios[state.gear - 1] ?? 1) * PHANTOM_GEARBOX.finalDrive;
     const speedRpm = (groundOmega * ratio * 60) / (2 * Math.PI);
     state.rpm = Math.max(800, Math.min(7500, speedRpm));
-
-    // Sync wheel omega to ground speed so slip ratio stays meaningful
-    for (let i = 0; i < this._config.wheels.length; i++) {
-      if (this._config.wheels[i]!.driven) {
-        // Blend toward ground-truth omega — prevents runaway spin
-        const targetOmega = Math.sign(speedForward || 1) * groundOmega;
-        state.wheelOmega[i] = targetOmega;
-      }
-    }
   }
 
   // ─── Private helpers ─────────────────────────────────────────
