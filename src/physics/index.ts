@@ -1,6 +1,9 @@
 // ─── Physics Module ──────────────────────────────────────────────
-// Barrel file — exports grow as modules are implemented.
-// Placeholder exports for future tasks (KR-006+).
+// Barrel file for all physics subsystems.
 
-// Tire model
-export {};
+export * from './tire';
+export * from './suspension';
+export * from './chassis';
+export * from './powertrain';
+export * from './aero';
+export * from './vehicle';
