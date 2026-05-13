@@ -1,8 +1,16 @@
 // ─── Phantom — Sports Car Configuration ─────────────────────────
 // KR-010: Phantom car config (~400hp, RWD, 1400kg).
+// KR-019: Extended with powertrain sub-configs for config-driven physics.
 
 import type { VehicleConfig } from '../physics/vehicle';
 import { Vector3 } from '@babylonjs/core';
+import {
+  PHANTOM_ENGINE,
+  PHANTOM_GEARBOX,
+  PHANTOM_CLUTCH,
+  PHANTOM_DIFF,
+} from '../physics/powertrain';
+import { PHANTOM_AERO } from '../physics/aero';
 
 // Wheel positions relative to vehicle center (in local space)
 // +X = right, +Y = up, +Z = forward
@@ -49,6 +57,13 @@ export const PHANTOM_CONFIG: VehicleConfig = {
       steered: false,
     },
   ],
+
+  // Powertrain sub-configs
+  engine: PHANTOM_ENGINE,
+  gearbox: PHANTOM_GEARBOX,
+  clutch: PHANTOM_CLUTCH,
+  diff: PHANTOM_DIFF,
+  aero: PHANTOM_AERO,
 };
 
 // Named export alias

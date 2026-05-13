@@ -6,6 +6,7 @@ import { init } from './core/engine';
 import { InputManager } from './core/input';
 import { Vehicle } from './physics/vehicle';
 import { PHANTOM_CONFIG } from './cars/phantom';
+import { VIPER_CONFIG } from './cars/viper';
 import { NeonCircuit } from './tracks/neon-circuit';
 import { TrackVisuals } from './track/visuals';
 import { TrackZones } from './track/zones';
@@ -34,21 +35,8 @@ async function bootstrap(): Promise<void> {
     const lapDetection = new LapDetection(trackZones);
 
     // ── 3. Vehicle ────────────────────────────────────────────
-    const vehicle = new Vehicle(scene, PHANTOM_CONFIG);
-
-    // Position and orient vehicle at track start
-    const startSample = trackSamples[3] ?? trackSamples[0];
-    if (startSample) {
-      vehicle.node.position.copyFrom(
-        startSample.position.add(new Vector3(0, 0.5, 0))
-      );
-      // Orient car along track tangent
-      const fwd = startSample.tangent.clone();
-      fwd.y = 0;
-      fwd.normalize();
-      const angle = Math.atan2(fwd.x, fwd.z);
-      vehicle.node.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), angle);
-    }
+    // Vehicle is created later (after menu) when we know which car was selected.
+    let vehicle: Vehicle | null = null;
 
     // ── 4. Input ──────────────────────────────────────────────
     const inputManager = new InputManager();
@@ -76,6 +64,24 @@ async function bootstrap(): Promise<void> {
     // ── 9. Menu / Game Start ──────────────────────────────────
     menu.show('main');
     menu.onPlay(() => {
+      // Create vehicle from selected car
+      const selectedCar = menu.selectedCar; // 'phantom' or 'viper'
+      vehicle = new Vehicle(scene, selectedCar === 'viper' ? VIPER_CONFIG : PHANTOM_CONFIG);
+
+      // Position and orient vehicle at track start
+      const startSample = trackSamples[3] ?? trackSamples[0];
+      if (startSample) {
+        vehicle.node.position.copyFrom(
+          startSample.position.add(new Vector3(0, 0.5, 0))
+        );
+        // Orient car along track tangent
+        const fwd = startSample.tangent.clone();
+        fwd.y = 0;
+        fwd.normalize();
+        const angle = Math.atan2(fwd.x, fwd.z);
+        vehicle.node.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), angle);
+      }
+
       // Initialize audio on first user interaction
       if (!audioReady) {
         audioReady = audioManager.init();
@@ -103,6 +109,12 @@ async function bootstrap(): Promise<void> {
       if (gameLoopStarted) return;
       gameLoopStarted = true;
 
+      // Safety check — vehicle must exist (created in onPlay)
+      if (!vehicle) {
+        console.error('[KuroRacing] Vehicle not initialized');
+        return;
+      }
+
       // Replace idle loop with full game loop
       engine.stopRenderLoop();
       engine.runRenderLoop(() => {
@@ -114,15 +126,15 @@ async function bootstrap(): Promise<void> {
         const inputState = inputManager.update();
 
         // Vehicle
-        vehicle.setInput(inputState);
-        vehicle.update(dt);
+        vehicle!.setInput(inputState);
+        vehicle!.update(dt);
 
         // Time trial (uses ms timestamp)
-        timeTrial.update(vehicle, now);
+        timeTrial.update(vehicle!, now);
 
         // Camera
-        const vehiclePos = vehicle.position;
-        const vehicleQuat = vehicle.rotation;
+        const vehiclePos = vehicle!.position;
+        const vehicleQuat = vehicle!.rotation;
         const vehicleRotEuler = vehicleQuat.toEulerAngles();
         cameraManager.setTarget(vehiclePos, vehicleRotEuler);
         cameraManager.update();
@@ -131,9 +143,9 @@ async function bootstrap(): Promise<void> {
         const ttState = timeTrial.state;
         const closestSample = neonCircuit.closestPoint(vehiclePos);
         const hudData: HUDData = {
-          speedKmh: vehicle.speedKmh,
-          gear: vehicle.gear,
-          rpm: vehicle.rpm,
+          speedKmh: vehicle!.speedKmh,
+          gear: vehicle!.gear,
+          rpm: vehicle!.rpm,
           currentLapTime: timeTrial.currentLapTime(now),
           lastLapTime: ttState.lastLapTime,
           personalBest: ttState.personalBest,
@@ -150,11 +162,11 @@ async function bootstrap(): Promise<void> {
         if (audioReady) {
           const surfaceGrip = trackZones.getSurfaceGrip(vehiclePos);
           audioManager.update({
-            rpm: vehicle.rpm,
+            rpm: vehicle!.rpm,
             throttle: inputState.throttle,
             slipMagnitude: 0,
             surfaceGrip,
-            speed: vehicle.speed,
+            speed: vehicle!.speed,
           });
         }
 

@@ -1,5 +1,6 @@
 // ─── Vehicle — Integrated Physics Vehicle ───────────────────────
 // KR-010: Unified vehicle class integrating all physics subsystems.
+// KR-019: Refactored to accept car-specific powertrain configs.
 // Uses custom physics integration (no HavokPlugin — not in package.json).
 // Applies forces to a TransformNode for position/rotation updates.
 
@@ -12,13 +13,24 @@ import {
 } from './tire';
 import {
   allWheelLoads,
+  type ChassisConfig,
+  PHANTOM_CHASSIS,
 } from './chassis';
 import {
   calcDrivetrain,
   PHANTOM_GEARBOX,
+  PHANTOM_ENGINE,
+  PHANTOM_CLUTCH,
+  PHANTOM_DIFF,
+  type EngineConfig,
+  type GearboxConfig,
+  type ClutchConfig,
+  type DifferentialConfig,
 } from './powertrain';
 import {
   aeroLoad,
+  PHANTOM_AERO,
+  type AeroConfig,
 } from './aero';
 import type { InputState } from '../core/input';
 
@@ -40,6 +52,12 @@ export interface VehicleConfig {
   maxSteerAngle: number;  // radians
   steerSpeed: number;     // radians/s
   wheels: WheelConfig[];
+  // Optional powertrain sub-configs (KR-019)
+  engine?: EngineConfig;
+  gearbox?: GearboxConfig;
+  clutch?: ClutchConfig;
+  diff?: DifferentialConfig;
+  aero?: AeroConfig;
 }
 
 export interface VehicleState {
@@ -61,10 +79,34 @@ export class Vehicle {
   private _state: VehicleState;
   private _input: InputState;
 
+  // Cached powertrain configs (defaults to PHANTOM_* if not provided)
+  private readonly _engine: EngineConfig;
+  private readonly _gearbox: GearboxConfig;
+  private readonly _clutch: ClutchConfig;
+  private readonly _diff: DifferentialConfig;
+  private readonly _aero: AeroConfig;
+  private readonly _chassis: ChassisConfig;
+
   private readonly GRAVITY = 9.81;
 
   constructor(scene: Scene, config: VehicleConfig) {
     this._config = config;
+
+    // Use car-specific powertrain configs or fall back to Phantom defaults
+    this._engine = config.engine ?? PHANTOM_ENGINE;
+    this._gearbox = config.gearbox ?? PHANTOM_GEARBOX;
+    this._clutch = config.clutch ?? PHANTOM_CLUTCH;
+    this._diff = config.diff ?? PHANTOM_DIFF;
+    this._aero = config.aero ?? PHANTOM_AERO;
+
+    // Build chassis config from vehicle config properties
+    this._chassis = {
+      mass: config.mass,
+      cgHeight: config.cgHeight,
+      trackWidth: config.trackWidth,
+      wheelbase: config.wheelbase,
+      weightDistributionFront: config.weightDistributionFront,
+    };
 
     this._node = new TransformNode('vehicle', scene);
     this._node.position = new Vector3(0, 0.5, 0);
@@ -115,27 +157,27 @@ export class Vehicle {
     // This breaks the circular dependency (need forces to get accel, need loads for forces).
     const lateralAccel = state.angularVelocity.y * speedForward;
     const estLongAccel = (state._lastLongAccel ?? 0);
-    const wheelLoads = allWheelLoads(lateralAccel, estLongAccel);
+    const wheelLoads = allWheelLoads(lateralAccel, estLongAccel, this._chassis);
 
     // ── RPM: blend of ground speed and wheel spin ────────────────
     // At launch ground speed is near-zero, so we blend with actual wheel omega
     // to break the chicken-and-egg (no speed → no RPM → no torque → no speed)
     const wheelRadius = this._config.wheels[2]?.radius ?? 0.33;
     const avgDrivenOmega = this._avgDrivenWheelOmega();
-    const gearRatio = (PHANTOM_GEARBOX.ratios[state.gear - 1] ?? 1) * PHANTOM_GEARBOX.finalDrive;
+    const gearRatio = (this._gearbox.ratios[state.gear - 1] ?? 1) * this._gearbox.finalDrive;
     const wheelRpm = (avgDrivenOmega * gearRatio * 60) / (2 * Math.PI);
     const groundOmega = Math.abs(speedForward) / wheelRadius;
     const groundRpm = (groundOmega * gearRatio * 60) / (2 * Math.PI);
     // Blend: at low speed trust wheel spin more, at high speed trust ground speed
     const blendFactor = Math.min(1, Math.abs(speedForward) / 10);
     const blendedRpm = wheelRpm * (1 - blendFactor) + groundRpm * blendFactor;
-    state.rpm = Math.max(800, Math.min(7500, blendedRpm));
+    state.rpm = Math.max(this._engine.idleRpm, Math.min(this._engine.redlineRpm, blendedRpm));
 
     // ── Auto-shift ───────────────────────────────────────────────
     this._autoShift();
 
     // ── Aero ─────────────────────────────────────────────────────
-    const aero = aeroLoad(Math.abs(speedForward));
+    const aero = aeroLoad(Math.abs(speedForward), this._aero);
 
     // ── Wheel normal forces (with aero downforce) ────────────────
     const frontNormal = Math.max(0, wheelLoads.frontLeft + wheelLoads.frontRight + aero.frontLoad);
@@ -154,7 +196,7 @@ export class Vehicle {
       wheelSpeedRight: state.wheelOmega[3] ?? 0,
       throttle: input.throttle,
     };
-    const drivetrain = calcDrivetrain(driveState);
+    const drivetrain = calcDrivetrain(driveState, this._engine, this._gearbox, this._clutch, this._diff);
 
     // ── Per-wheel forces ─────────────────────────────────────────
     let totalFX = 0; // local X (lateral)
@@ -271,10 +313,10 @@ export class Vehicle {
   }
 
   private _autoShift(): void {
-    const maxGear = PHANTOM_GEARBOX.ratios.length;
-    if (this._state.rpm > 7500 * 0.85 && this._state.gear < maxGear) {
+    const maxGear = this._gearbox.ratios.length;
+    if (this._state.rpm > this._engine.redlineRpm * 0.85 && this._state.gear < maxGear) {
       this._state.gear++;
-    } else if (this._state.rpm < 7500 * 0.25 && this._state.gear > 1) {
+    } else if (this._state.rpm < this._engine.redlineRpm * 0.25 && this._state.gear > 1) {
       this._state.gear--;
     }
   }
