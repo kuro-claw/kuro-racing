@@ -1,5 +1,6 @@
 // ─── Time Trial Mode — Game Mode Logic ───────────────────────────
 // KR-015: Countdown, race, lap times, personal best (localStorage), ghost replay.
+// KR-020: Per-track personal best storage.
 
 import type { Vehicle } from '../physics/vehicle';
 import type { LapDetection, LapTime } from '../track/lap-detection';
@@ -8,11 +9,15 @@ import type { Scene } from '@babylonjs/core';
 
 // ─── Local Storage ────────────────────────────────────────────────
 
-const PB_STORAGE_KEY = 'kuro-racing:time-trial:personal-best';
+const PB_STORAGE_PREFIX = 'kuro-racing:time-trial:pb:';
 
-export function loadPersonalBest(): number {
+function getStorageKey(trackId: string): string {
+  return `${PB_STORAGE_PREFIX}${trackId}`;
+}
+
+export function loadPersonalBest(trackId: string): number {
   try {
-    const stored = localStorage.getItem(PB_STORAGE_KEY);
+    const stored = localStorage.getItem(getStorageKey(trackId));
     if (stored) {
       const val = parseFloat(stored);
       if (isFinite(val) && val > 0) return val;
@@ -23,9 +28,9 @@ export function loadPersonalBest(): number {
   return Infinity;
 }
 
-export function savePersonalBest(ms: number): void {
+export function savePersonalBest(trackId: string, ms: number): void {
   try {
-    localStorage.setItem(PB_STORAGE_KEY, ms.toString());
+    localStorage.setItem(getStorageKey(trackId), ms.toString());
   } catch {
     // ignore
   }
@@ -51,10 +56,12 @@ export class TimeTrial {
   private _lapDetection: LapDetection;
   private _ghostRecorder: GhostRecorder;
   private _ghostPlayer: GhostPlayer;
+  private _trackId: string;
   private _countdownStartTime: number = 0;
   private _bestGhostFrames: ReturnType<GhostRecorder['stop']> = [];
 
-  constructor(scene: Scene, lapDetection: LapDetection) {
+  constructor(scene: Scene, lapDetection: LapDetection, trackId: string = 'neon-circuit') {
+    this._trackId = trackId;
     this._lapDetection = lapDetection;
     this._ghostRecorder = new GhostRecorder();
     this._ghostPlayer = new GhostPlayer(scene);
@@ -64,7 +71,7 @@ export class TimeTrial {
       countdown: 3,
       currentLap: 0,
       lapTimes: [],
-      personalBest: loadPersonalBest(),
+      personalBest: loadPersonalBest(trackId),
       lastLapTime: 0,
     };
   }
@@ -121,7 +128,7 @@ export class TimeTrial {
     // Check personal best
     if (lap.totalTime < state.personalBest) {
       state.personalBest = lap.totalTime;
-      savePersonalBest(lap.totalTime);
+      savePersonalBest(this._trackId, lap.totalTime);
       // Save ghost frames from this lap
       this._bestGhostFrames = this._ghostRecorder.stop();
     } else {

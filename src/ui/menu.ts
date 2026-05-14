@@ -1,6 +1,7 @@
-// ─── Menu — Title Screen, Car Selection & Play Button ───────────
+// ─── Menu — Title Screen, Car Selection, Track Selection & Play Button ──
 // KR-017: Synthwave menu with title and play button using Babylon GUI.
 // KR-019: Added car selection between title and play button.
+// KR-020: Added track selection below car selection.
 
 import {
   AdvancedDynamicTexture,
@@ -14,6 +15,7 @@ import { Scene } from '@babylonjs/core';
 
 export type MenuState = 'main' | 'paused' | 'hidden';
 export type CarId = 'phantom' | 'viper';
+export type TrackId = 'neon-circuit' | 'rainbow-boulevard';
 
 export class Menu {
   private _adt: AdvancedDynamicTexture;
@@ -22,6 +24,7 @@ export class Menu {
   private _onPlay?: () => void;
   private _onResume?: () => void;
   private _selectedCar: CarId = 'phantom';
+  private _selectedTrack: TrackId = 'neon-circuit';
 
   constructor(scene: Scene) {
     this._adt = AdvancedDynamicTexture.CreateFullscreenUI('menu', true, scene);
@@ -40,6 +43,7 @@ export class Menu {
     const panel = new StackPanel('menu-panel');
     panel.isVertical = true;
     panel.width = '500px';
+    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     overlay.addControl(panel);
 
     // Title
@@ -65,7 +69,7 @@ export class Menu {
 
     // Spacer
     const spacer = new Rectangle('spacer');
-    spacer.height = '30px';
+    spacer.height = '20px';
     spacer.thickness = 0;
     panel.addControl(spacer);
 
@@ -161,9 +165,105 @@ export class Menu {
 
     // Spacer after car selection
     const spacer2 = new Rectangle('spacer2');
-    spacer2.height = '30px';
+    spacer2.height = '20px';
     spacer2.thickness = 0;
     panel.addControl(spacer2);
+
+    // ── Track Selection ────────────────────────────────────────
+    const trackLabel = new TextBlock('track-label');
+    trackLabel.text = 'SELECT TRACK';
+    trackLabel.color = '#778899';
+    trackLabel.fontSize = 16;
+    trackLabel.fontFamily = 'monospace';
+    trackLabel.height = '25px';
+    panel.addControl(trackLabel);
+
+    // Track selection container (two side-by-side track cards)
+    const trackRow = new StackPanel('track-row');
+    trackRow.isVertical = false;
+    trackRow.width = '100%';
+    trackRow.height = '90px';
+    panel.addControl(trackRow);
+
+    // Neon Circuit card
+    const neonCard = new Rectangle('neon-card');
+    neonCard.width = '220px';
+    neonCard.height = '80px';
+    neonCard.cornerRadius = 4;
+    neonCard.thickness = 2;
+    neonCard.background = 'rgba(0, 40, 50, 0.6)';
+    this._setTrackCardStyle(neonCard, true);
+    neonCard.onPointerClickObservable.add(() => {
+      this._selectedTrack = 'neon-circuit';
+      this._setTrackCardStyle(neonCard, true);
+      this._setTrackCardStyle(rainbowCard, false);
+    });
+
+    const neonName = new TextBlock('neon-name');
+    neonName.text = 'NEON CIRCUIT';
+    neonName.color = '#00ccdd';
+    neonName.fontSize = 20;
+    neonName.fontFamily = 'monospace';
+    neonName.height = '30px';
+    neonCard.addControl(neonName);
+
+    const neonDesc = new TextBlock('neon-desc');
+    neonDesc.text = 'Oval circuit · 10m wide';
+    neonDesc.color = '#669999';
+    neonDesc.fontSize = 13;
+    neonDesc.fontFamily = 'monospace';
+    neonDesc.height = '25px';
+    neonCard.addControl(neonDesc);
+
+    const neonSectors = new TextBlock('neon-sectors');
+    neonSectors.text = '200 samples · 3 sectors';
+    neonSectors.color = '#445566';
+    neonSectors.fontSize = 11;
+    neonSectors.fontFamily = 'monospace';
+    neonSectors.height = '20px';
+    neonCard.addControl(neonSectors);
+
+    trackRow.addControl(neonCard);
+
+    // Rainbow Boulevard card
+    const rainbowCard = new Rectangle('rainbow-card');
+    rainbowCard.width = '220px';
+    rainbowCard.height = '80px';
+    rainbowCard.cornerRadius = 4;
+    rainbowCard.thickness = 2;
+    this._setTrackCardStyle(rainbowCard, false);
+
+    const rainbowName = new TextBlock('rainbow-name');
+    rainbowName.text = 'RAINBOW BOULEVARD';
+    rainbowName.color = '#bb44ff';
+    rainbowName.fontSize = 20;
+    rainbowName.fontFamily = 'monospace';
+    rainbowName.height = '30px';
+    rainbowCard.addControl(rainbowName);
+
+    const rainbowDesc = new TextBlock('rainbow-desc');
+    rainbowDesc.text = 'Elevated figure-8 · 12m wide';
+    rainbowDesc.color = '#9966bb';
+    rainbowDesc.fontSize = 13;
+    rainbowDesc.fontFamily = 'monospace';
+    rainbowDesc.height = '25px';
+    rainbowCard.addControl(rainbowDesc);
+
+    const rainbowSectors = new TextBlock('rainbow-sectors');
+    rainbowSectors.text = '240 samples · 3 sectors';
+    rainbowSectors.color = '#665588';
+    rainbowSectors.fontSize = 11;
+    rainbowSectors.fontFamily = 'monospace';
+    rainbowSectors.height = '20px';
+    rainbowCard.addControl(rainbowSectors);
+
+    trackRow.addControl(rainbowCard);
+
+    // Spacer after track selection
+    const spacer3 = new Rectangle('spacer3');
+    spacer3.height = '20px';
+    spacer3.thickness = 0;
+    panel.addControl(spacer3);
 
     // Play button
     const playBtn = Button.CreateSimpleButton('play-btn', 'RACE');
@@ -183,10 +283,10 @@ export class Menu {
     });
 
     // Controls hint
-    const spacer3 = new Rectangle('spacer3');
-    spacer3.height = '40px';
-    spacer3.thickness = 0;
-    panel.addControl(spacer3);
+    const spacer4 = new Rectangle('spacer4');
+    spacer4.height = '30px';
+    spacer4.thickness = 0;
+    panel.addControl(spacer4);
 
     const controls = new TextBlock('controls');
     controls.text = 'WASD / Arrow Keys — Drive\nSpace — Handbrake\nClick to enable audio';
@@ -218,6 +318,7 @@ export class Menu {
   get state(): MenuState { return this._state; }
   get isVisible(): boolean { return this._container.isVisible; }
   get selectedCar(): CarId { return this._selectedCar; }
+  get selectedTrack(): TrackId { return this._selectedTrack; }
 
   // ─── Helpers ──────────────────────────────────────────────────
 
@@ -228,6 +329,18 @@ export class Menu {
     } else {
       card.background = 'rgba(0, 40, 60, 0.5)';
       card.thickness = 1;
+    }
+  }
+
+  private _setTrackCardStyle(card: Rectangle, selected: boolean): void {
+    if (selected) {
+      card.background = 'rgba(30, 20, 60, 0.8)';
+      card.thickness = 2;
+      card.color = '#aa44ff';
+    } else {
+      card.background = 'rgba(15, 10, 35, 0.5)';
+      card.thickness = 1;
+      card.color = '#330066';
     }
   }
 

@@ -28,6 +28,7 @@ export interface HUDData {
   sectorTimes: number[];  // ms
   carPosition: Vector3;
   trackProgress: number;  // 0-1
+  trackName: string;
 }
 
 // ─── Time Formatter ───────────────────────────────────────────────
@@ -49,6 +50,7 @@ export class HUD {
   private _lapTimeText!: TextBlock;
   private _lastLapText!: TextBlock;
   private _pbText!: TextBlock;
+  private _trackNameText!: TextBlock;
   private _miniMap!: Rectangle;
   private _miniMapDot!: Ellipse;
   private _trackSamples: TrackSample[] = [];
@@ -135,7 +137,7 @@ export class HUD {
     // ── Lap time ────────────────────────────────────────────────
     const timingPanel = new Rectangle('timing-panel');
     timingPanel.width = '220px';
-    timingPanel.height = '90px';
+    timingPanel.height = '110px';
     timingPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     timingPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     timingPanel.left = '20px';
@@ -148,6 +150,15 @@ export class HUD {
     const timeStack = new StackPanel('time-stack');
     timeStack.isVertical = true;
     timingPanel.addControl(timeStack);
+
+    // Track name (subtle display at top of timing panel)
+    this._trackNameText = new TextBlock('track-name');
+    this._trackNameText.text = '';
+    this._trackNameText.color = '#556677';
+    this._trackNameText.fontSize = 14;
+    this._trackNameText.fontFamily = 'monospace';
+    this._trackNameText.height = '20px';
+    timeStack.addControl(this._trackNameText);
 
     this._lapTimeText = new TextBlock('lap-time');
     this._lapTimeText.text = '--:--.---';
@@ -200,6 +211,10 @@ export class HUD {
 
   setTrackSamples(samples: TrackSample[]): void {
     this._trackSamples = samples;
+  }
+
+  setTrackName(name: string): void {
+    this._trackNameText.text = name.toUpperCase();
   }
 
   update(data: HUDData): void {

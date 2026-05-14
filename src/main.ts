@@ -7,7 +7,10 @@ import { InputManager } from './core/input';
 import { Vehicle } from './physics/vehicle';
 import { PHANTOM_CONFIG } from './cars/phantom';
 import { VIPER_CONFIG } from './cars/viper';
-import { NeonCircuit } from './tracks/neon-circuit';
+import { NeonCircuit, NEON_CIRCUIT_CONFIG } from './tracks/neon-circuit';
+import { RainbowBoulevard, RAINBOW_BOULEVARD_CONFIG } from './tracks/rainbow-boulevard';
+import type { TrackConfig } from './track/track-config';
+import type { TrackSample } from './tracks/neon-circuit';
 import { TrackVisuals } from './track/visuals';
 import { TrackZones } from './track/zones';
 import { LapDetection } from './track/lap-detection';
@@ -18,55 +21,63 @@ import { TimeTrial } from './game/timetrial';
 import { AudioManager } from './audio/manager';
 import { PostProcessingManager } from './rendering/post-processing';
 
+// ─── Track Registry ───────────────────────────────────────────────
+
+const TRACKS: Record<string, TrackConfig> = {
+  'neon-circuit': NEON_CIRCUIT_CONFIG,
+  'rainbow-boulevard': RAINBOW_BOULEVARD_CONFIG,
+};
+
 async function bootstrap(): Promise<void> {
   try {
     // ── 1. Engine ─────────────────────────────────────────────
     const { engine, scene, cameraManager, lighting, environment } = await init();
 
-    // ── 2. Track ──────────────────────────────────────────────
-    const neonCircuit = new NeonCircuit(scene);
-    neonCircuit.build();
-    const trackSamples = neonCircuit.samples;
-
-    const trackVisuals = new TrackVisuals(scene);
-    trackVisuals.build(trackSamples);
-
-    const trackZones = new TrackZones(trackSamples, 3);
-    const lapDetection = new LapDetection(trackZones);
-
-    // ── 3. Vehicle ────────────────────────────────────────────
-    // Vehicle is created later (after menu) when we know which car was selected.
-    let vehicle: Vehicle | null = null;
-
-    // ── 4. Input ──────────────────────────────────────────────
+    // ── 2. Input ──────────────────────────────────────────────
     const inputManager = new InputManager();
     inputManager.attach();
 
-    // ── 5. UI ─────────────────────────────────────────────────
+    // ── 3. UI ─────────────────────────────────────────────────
     const hud = new HUD(scene);
-    hud.setTrackSamples(trackSamples);
 
     const menu = new Menu(scene);
 
-    // ── 6. Game Mode ──────────────────────────────────────────
-    const timeTrial = new TimeTrial(scene, lapDetection);
-
-    // ── 7. Audio ──────────────────────────────────────────────
+    // ── 4. Audio ──────────────────────────────────────────────
     const audioManager = new AudioManager();
 
     // Audio must be initialized after a user gesture — init on first play
     let audioReady = false;
 
-    // ── 8. Post-Processing ────────────────────────────────────
+    // ── 5. Post-Processing ────────────────────────────────────
     const postFX = new PostProcessingManager(scene);
     postFX.init(cameraManager.getActiveCamera());
 
-    // ── 9. Menu / Game Start ──────────────────────────────────
+    // ── 6. Menu / Game Start ──────────────────────────────────
     menu.show('main');
     menu.onPlay(() => {
+      // Select track
+      const selectedTrack = menu.selectedTrack; // 'neon-circuit' or 'rainbow-boulevard'
+      const trackConfig = TRACKS[selectedTrack];
+
+      // Instantiate track based on selection
+      let track: NeonCircuit | RainbowBoulevard;
+      if (selectedTrack === 'rainbow-boulevard') {
+        track = new RainbowBoulevard(scene);
+      } else {
+        track = new NeonCircuit(scene);
+      }
+      track.build();
+      const trackSamples = track.samples;
+
+      const trackVisuals = new TrackVisuals(scene);
+      trackVisuals.build(trackSamples, trackConfig.width);
+
+      const trackZones = new TrackZones(trackSamples, trackConfig.numSectors, trackConfig.width);
+      const lapDetection = new LapDetection(trackZones);
+
       // Create vehicle from selected car
       const selectedCar = menu.selectedCar; // 'phantom' or 'viper'
-      vehicle = new Vehicle(scene, selectedCar === 'viper' ? VIPER_CONFIG : PHANTOM_CONFIG);
+      const vehicle = new Vehicle(scene, selectedCar === 'viper' ? VIPER_CONFIG : PHANTOM_CONFIG);
 
       // Position and orient vehicle at track start
       const startSample = trackSamples[3] ?? trackSamples[0];
@@ -92,12 +103,19 @@ async function bootstrap(): Promise<void> {
       const canvas = document.getElementById('render-canvas');
       if (canvas) canvas.focus();
 
+      // HUD setup
+      hud.setTrackSamples(trackSamples);
+      hud.setTrackName(trackConfig.name);
+
+      // Create time trial with track-specific PB storage
+      const timeTrial = new TimeTrial(scene, lapDetection, selectedTrack);
+
       const now = performance.now();
       timeTrial.start(now);
-      startGameLoop();
+      startGameLoop(vehicle, trackZones, track, trackConfig, timeTrial);
     });
 
-    // ── 10. Render Loop ───────────────────────────────────────
+    // ── 7. Render Loop ────────────────────────────────────────
     // Idle loop — just renders menu + scene background before game starts
     engine.runRenderLoop(() => {
       scene.render();
@@ -105,15 +123,15 @@ async function bootstrap(): Promise<void> {
 
     let gameLoopStarted = false;
 
-    function startGameLoop(): void {
+    function startGameLoop(
+      vehicle: Vehicle,
+      trackZones: TrackZones,
+      track: NeonCircuit | RainbowBoulevard,
+      trackConfig: TrackConfig,
+      timeTrial: TimeTrial,
+    ): void {
       if (gameLoopStarted) return;
       gameLoopStarted = true;
-
-      // Safety check — vehicle must exist (created in onPlay)
-      if (!vehicle) {
-        console.error('[KuroRacing] Vehicle not initialized');
-        return;
-      }
 
       // Replace idle loop with full game loop
       engine.stopRenderLoop();
@@ -126,26 +144,26 @@ async function bootstrap(): Promise<void> {
         const inputState = inputManager.update();
 
         // Vehicle
-        vehicle!.setInput(inputState);
-        vehicle!.update(dt);
+        vehicle.setInput(inputState);
+        vehicle.update(dt);
 
         // Time trial (uses ms timestamp)
-        timeTrial.update(vehicle!, now);
+        timeTrial.update(vehicle, now);
 
         // Camera
-        const vehiclePos = vehicle!.position;
-        const vehicleQuat = vehicle!.rotation;
+        const vehiclePos = vehicle.position;
+        const vehicleQuat = vehicle.rotation;
         const vehicleRotEuler = vehicleQuat.toEulerAngles();
         cameraManager.setTarget(vehiclePos, vehicleRotEuler);
         cameraManager.update();
 
         // HUD
         const ttState = timeTrial.state;
-        const closestSample = neonCircuit.closestPoint(vehiclePos);
+        const closestSample = track.closestPoint(vehiclePos);
         const hudData: HUDData = {
-          speedKmh: vehicle!.speedKmh,
-          gear: vehicle!.gear,
-          rpm: vehicle!.rpm,
+          speedKmh: vehicle.speedKmh,
+          gear: vehicle.gear,
+          rpm: vehicle.rpm,
           currentLapTime: timeTrial.currentLapTime(now),
           lastLapTime: ttState.lastLapTime,
           personalBest: ttState.personalBest,
@@ -155,6 +173,7 @@ async function bootstrap(): Promise<void> {
               : [],
           carPosition: vehiclePos,
           trackProgress: closestSample.sample.t,
+          trackName: trackConfig.name,
         };
         hud.update(hudData);
 
@@ -162,11 +181,11 @@ async function bootstrap(): Promise<void> {
         if (audioReady) {
           const surfaceGrip = trackZones.getSurfaceGrip(vehiclePos);
           audioManager.update({
-            rpm: vehicle!.rpm,
+            rpm: vehicle.rpm,
             throttle: inputState.throttle,
             slipMagnitude: 0,
             surfaceGrip,
-            speed: vehicle!.speed,
+            speed: vehicle.speed,
           });
         }
 

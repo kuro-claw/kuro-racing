@@ -11,7 +11,6 @@ import {
   GlowLayer,
 } from '@babylonjs/core';
 import type { TrackSample } from '../tracks/neon-circuit';
-import { TRACK_WIDTH } from '../tracks/neon-circuit';
 
 // ─── Neon Colors ─────────────────────────────────────────────────
 
@@ -33,13 +32,13 @@ export class TrackVisuals {
 
   /**
    * Build all visual elements for the track.
-   * Call after NeonCircuit.build().
+   * Call after track.build().
    */
-  build(samples: TrackSample[]): void {
+  build(samples: TrackSample[], trackWidth: number = 10): void {
     this._setupGlow();
-    this._buildNeonBarriers(samples);
+    this._buildNeonBarriers(samples, trackWidth);
     this._buildLaneMarkers(samples);
-    this._buildRumbleStrips(samples);
+    this._buildRumbleStrips(samples, trackWidth);
     this._buildCityscape();
   }
 
@@ -53,8 +52,8 @@ export class TrackVisuals {
 
   // ─── Neon Barriers ───────────────────────────────────────────
 
-  private _buildNeonBarriers(samples: TrackSample[]): void {
-    const halfWidth = TRACK_WIDTH / 2 + 0.3;
+  private _buildNeonBarriers(samples: TrackSample[], trackWidth: number): void {
+    const halfWidth = trackWidth / 2 + 0.3;
     const barrierH = 0.6;
 
     for (const side of [-1, 1]) {
@@ -114,8 +113,8 @@ export class TrackVisuals {
 
   // ─── Rumble Strips ───────────────────────────────────────────
 
-  private _buildRumbleStrips(samples: TrackSample[]): void {
-    const halfWidth = TRACK_WIDTH / 2;
+  private _buildRumbleStrips(samples: TrackSample[], trackWidth: number): void {
+    const halfWidth = trackWidth / 2;
 
     for (const side of [-1, 1]) {
       const color = side === -1 ? NEON_PURPLE : NEON_PINK;

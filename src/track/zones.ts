@@ -3,7 +3,6 @@
 
 import { Vector3 } from '@babylonjs/core';
 import type { TrackSample } from '../tracks/neon-circuit';
-import { TRACK_WIDTH } from '../tracks/neon-circuit';
 
 export interface Zone {
   id: string;
@@ -52,10 +51,13 @@ export function buildZones(samples: TrackSample[], numSectors: number = 3): Zone
 export class TrackZones {
   private _zones: Zone[];
   private _samples: TrackSample[];
-  private readonly _checkRadius = TRACK_WIDTH + 2; // m — trigger zone radius
+  private readonly _trackWidth: number;
+  private readonly _checkRadius: number;
 
-  constructor(samples: TrackSample[], numSectors: number = 3) {
+  constructor(samples: TrackSample[], numSectors: number = 3, trackWidth: number = 10) {
     this._samples = samples;
+    this._trackWidth = trackWidth;
+    this._checkRadius = trackWidth + 2; // m — trigger zone radius
     this._zones = buildZones(samples, numSectors);
   }
 
@@ -81,7 +83,7 @@ export class TrackZones {
       if (d < minDist) minDist = d;
     }
 
-    const halfWidth = TRACK_WIDTH / 2;
+    const halfWidth = this._trackWidth / 2;
     if (minDist <= halfWidth) return 1.0;               // on track
     if (minDist <= halfWidth + 2) return 0.8;           // rumble strip
     if (minDist <= halfWidth + 6) return 0.6;           // grass/runoff

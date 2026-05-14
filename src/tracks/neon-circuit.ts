@@ -12,6 +12,7 @@ import {
   Path3D,
   VertexData,
 } from '@babylonjs/core';
+import type { TrackConfig } from '../track/track-config';
 
 // ─── Track Control Points ────────────────────────────────────────
 // Oval-inspired circuit with chicanes — a proper racing layout
@@ -36,6 +37,15 @@ export const NEON_CIRCUIT_POINTS: Vector3[] = [
 
 export const TRACK_WIDTH = 10; // m
 export const TRACK_POINTS = 200; // interpolated points along spline
+
+export const NEON_CIRCUIT_CONFIG: TrackConfig = {
+  id: 'neon-circuit',
+  name: 'Neon Circuit',
+  width: TRACK_WIDTH,
+  numSamples: TRACK_POINTS,
+  numSectors: 3,
+  description: 'Oval circuit · 10m wide',
+};
 
 // ─── Track Sampler ───────────────────────────────────────────────
 
